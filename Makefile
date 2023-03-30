@@ -76,8 +76,8 @@ dist/godot-$(EXT_NAME).tar.gz: $(RELEASE_TARGET) $(DEBUG_TARGET)
 
 
 # Refer to .releaserc.yaml for release configuration
-.PHONY: release 
-release: ## Publish a release with semantic release 
+.PHONY: sem-release 
+sem-release: ## Publish a release with semantic release 
 	npx semantic-release
 
 # E.g. make in-docker TARGET=build
