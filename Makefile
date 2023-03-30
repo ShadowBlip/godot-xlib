@@ -1,9 +1,14 @@
 EXT_NAME := xlib
 NUM_CPU := $(shell nproc)
+GODOT_CPP_FILES := $(shell find ./ -regex  '.*\(cpp\|h\|hpp\)$$') godot-cpp/SConstruct
 ALL_CPP := $(shell find ./src -name '*.cpp')
 ALL_HEADERS := $(shell find ./src -name '*.h')
 RELEASE_TARGET := addons/$(EXT_NAME)/bin/lib$(EXT_NAME).linux.template_release.x86_64.so
 DEBUG_TARGET := addons/$(EXT_NAME)/bin/lib$(EXT_NAME).linux.template_debug.x86_64.so
+
+# Docker image variables
+IMAGE_NAME ?= ghcr.io/shadowblip/opengamepadui-builder
+IMAGE_TAG ?= latest
 
 ##@ General
 
@@ -24,7 +29,7 @@ help: ## Display this help.
 
 
 .PHONY: build
-build: $(RELEASE_TARGET) $(DEBUG_TARGET) ## Build release and debug binaries
+build: $(RELEASE_TARGET) $(DEBUG_TARGET) compiledb ## Build release and debug binaries
 
 .PHONY: clean
 clean:
@@ -33,20 +38,27 @@ clean:
 
 .PHONY: release
 release: $(RELEASE_TARGET) ## Build release binary
-$(RELEASE_TARGET): $(ALL_HEADERS) $(ALL_CPP)
-	scons -Q compiledb
+$(RELEASE_TARGET): $(ALL_HEADERS) $(ALL_CPP) $(GODOT_CPP_FILES)
 	scons platform=linux -j$(NUM_CPU) target=template_release
 
 .PHONY: debug
 debug: $(DEBUG_TARGET) ## Build binary with debug symbols
-$(DEBUG_TARGET): $(ALL_HEADERS) $(ALL_CPP)
-	scons -Q compiledb
+$(DEBUG_TARGET): $(ALL_HEADERS) $(ALL_CPP) $(GODOT_CPP_FILES)
 	scons platform=linux -j$(NUM_CPU) target=template_debug
+
+##@ Development
+
+.PHONY: compiledb
+compiledb: compile_commands.json ## Generate compiledb.json
+compile_commands.json: godot-cpp/SConstruct $(ALL_CPP) $(ALL_HEADERS) $(GODOT_CPP_FILES)
+	scons -Q compiledb
 
 
 ## Godot CPP
 
-GODOT_CPP_FILES := $(shell find ./ -regex  '.*\(cpp\|h\|hpp\)$$')
+godot-cpp/SConstruct:
+	git submodule update --init --recursive
+
 godot-cpp/bin/libgodot-cpp.linux.template_debug.x86_64.a: $(GODOT_CPP_FILES)
 	cd godot-cpp && scons platform=linux -j$(NUM_CPU) target=template_debug
 
@@ -61,3 +73,22 @@ dist: dist/godot-$(EXT_NAME).tar.gz ## Build a redistributable archive of the pr
 dist/godot-$(EXT_NAME).tar.gz: $(RELEASE_TARGET) $(DEBUG_TARGET)
 	mkdir -p dist
 	tar cvfz $@ addons
+
+
+# Refer to .releaserc.yaml for release configuration
+.PHONY: release 
+release: ## Publish a release with semantic release 
+	npx semantic-release
+
+# E.g. make in-docker TARGET=build
+.PHONY: in-docker
+in-docker:
+	@# Run the given make target inside Docker
+	docker run --rm \
+		-v $(PWD):/src \
+		--workdir /src \
+		-e HOME=/home/build \
+		--user $(shell id -u):$(shell id -g) \
+		$(IMAGE_NAME):$(IMAGE_TAG) \
+		make $(TARGET)
+
