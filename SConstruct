@@ -29,6 +29,7 @@ if 'PKG_CONFIG_PATH' in os.environ:
 env.ParseConfig("pkg-config x11 --cflags --libs")
 env.ParseConfig("pkg-config xres --cflags --libs")
 env.ParseConfig("pkg-config xtst --cflags --libs")
+env.ParseConfig("pkg-config xi --cflags --libs")
 
 # Generating the compilation DB (`compile_commands.json`) requires SCons 4.0.0 or later.
 
